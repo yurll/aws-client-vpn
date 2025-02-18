@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
-import subprocess
 import boto3
+import glob
 import logging
 import os
 import random
@@ -27,6 +27,7 @@ parser.add_argument("--region", help="aws region the vpn exists",
                     action="store", required=False)
 
 args = parser.parse_args()
+print("DEBUG: args.region: ", args.region)
 
 if not args.region:
     try:
@@ -34,14 +35,13 @@ if not args.region:
     except KeyError as ex:
         log.error('Set the aws region using --region or environment variable AWS_REGION')
         exit(1)
-
 if args.verbose:
     log.setLevel(logging.DEBUG)
     log.debug('set log level to verbose')
 
-client = boto3.client('ec2')
+client = boto3.client('ec2', region_name=args.region)
 
-server_name = f"{args.name}-ClientVpn"
+server_name = f"{args.name}"
 server = client.describe_client_vpn_endpoints(
     MaxResults=5,
     Filters=[
@@ -64,14 +64,23 @@ vpn_config = client.export_client_vpn_client_configuration(
 
 config = vpn_config['ClientConfiguration']
 config = re.sub(rf"{id}.*",rf"{randomString()}.{id}.prod.clientvpn.{args.region}.amazonaws.com 443",config)
-config = config + f"\n\ncert /path/client1.domain.tld.crt"
-config = config + f"\nkey /path/client1.domain.tld.key\n"
+
+client_cert_file = glob.glob(f'output/*{args.name}*.crt')[0]
+with open(client_cert_file, 'r') as file:
+    client_cert_file_content = file.read()
+regex = re.compile(r'-----BEGIN CERTIFICATE-----.*', re.S)
+client_cert = regex.search(client_cert_file_content).group(0)
+config = config + f"<cert>\n{client_cert}\n</cert>\n"
+
+client_key_file = glob.glob(f'output/*{args.name}*.key')[0]
+with open(client_key_file, 'r') as file:
+    client_key_file_content = file.read()
+config = config + f"<key>\n{client_key_file_content}\n</key>\n"
+
 
 config_file = f"output/{id}.ovpn"
-
-file = open(config_file, 'w')
-file.write(config)
-file.close()
+with open(config_file, 'w') as file:
+    file.write(config)
 
 log.info(f"Created config file {config_file}")
 log.info("Please copy the config along with the client certificate a key to a secure location in your computer")
