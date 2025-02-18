@@ -27,6 +27,13 @@ Parameters:
   AssociationSubnetId:
     Description: The subnet to assciate the VPN endpoint with
     Type: AWS::EC2::Subnet::Id
+  SplitTunel:
+    Description: Enable split tunel
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
 
 Resources:
 
@@ -61,6 +68,7 @@ Resources:
           Value:
             Ref: EnvironmentName
       TransportProtocol: udp
+      SplitTunnel: !Ref SplitTunel
     Type: AWS::EC2::ClientVpnEndpoint
 
   ClientVpnTargetNetworkAssociation:

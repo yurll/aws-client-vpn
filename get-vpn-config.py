@@ -70,12 +70,12 @@ with open(client_cert_file, 'r') as file:
     client_cert_file_content = file.read()
 regex = re.compile(r'-----BEGIN CERTIFICATE-----.*', re.S)
 client_cert = regex.search(client_cert_file_content).group(0)
-config = config + f"<cert>\n{client_cert}\n</cert>\n"
+config = config + f"\n<cert>\n{client_cert}\n</cert>\n"
 
 client_key_file = glob.glob(f'output/*{args.name}*.key')[0]
 with open(client_key_file, 'r') as file:
     client_key_file_content = file.read()
-config = config + f"<key>\n{client_key_file_content}\n</key>\n"
+config = config + f"\n<key>\n{client_key_file_content}\n</key>\n"
 
 
 config_file = f"output/{id}.ovpn"
