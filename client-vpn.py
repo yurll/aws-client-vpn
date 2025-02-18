@@ -11,6 +11,8 @@ def load_byte_file(filename):
     return open(filename, "rb").read()
 
 def import_certificate(cert,key,ca):
+    if args.region:
+        boto3.setup_default_session(region_name=args.region)
     acm = boto3.client('acm')
     response = acm.import_certificate(
         Certificate=load_byte_file(cert),
@@ -20,6 +22,8 @@ def import_certificate(cert,key,ca):
     return response['CertificateArn']
 
 def tag_certificate(arn,tags=[]):
+    if args.region:
+        boto3.setup_default_session(region_name=args.region)
     acm = boto3.client('acm')
     response = acm.add_tags_to_certificate(
         CertificateArn=arn,
@@ -48,6 +52,9 @@ parser.add_argument("--subnet-id", help="SubnetId to which the vpn will assocate
 parser.add_argument("--cidr", help="CIDR the vpn will give to the clients",
                     action="store", required=False)
 
+parser.add_argument("--region", help="set the region for the vpn",
+                    action="store", required=False)
+
 args = parser.parse_args()
 
 if not args.client_cn:
@@ -57,10 +64,14 @@ if args.verbose:
     log.setLevel(logging.DEBUG)
     log.debug('set log level to verbose')
 
-docker_exists = subprocess.call(['which', 'docker'])
-
-if docker_exists != 0:
+docker_exists = subprocess.run(['which', 'docker'], capture_output=True)
+if docker_exists.stdout == b'':
     log.error("docker command does not exist in your path. Please start or install docker to use this script!")
+    exit(1)
+
+docker_running = subprocess.run(['docker', 'info'], capture_output=True)
+if docker_running.returncode != 0:
+    log.error("docker is not running. Please start docker to use this script!")
     exit(1)
 
 docker_run = ["docker", "run", "-it", "--rm"]
@@ -108,6 +119,9 @@ if args.cidr:
 with open('template.yaml', 'r') as file:
     template = file.read()
 
+if args.region:
+    log.info(f"Setting region to {args.region}")
+    boto3.setup_default_session(region_name=args.region)
 cloudformation = boto3.client('cloudformation')
 stack_name = f"{args.name}-vpn"
 
@@ -128,8 +142,9 @@ waiter = cloudformation.get_waiter('stack_create_complete')
 waiter_config = {'Delay': 5,'MaxAttempts': 720}
 try:
     waiter.wait(StackName=stack_name, WaiterConfig=waiter_config)
-except botocore.exceptions.WaiterError as ex:
+except exceptions.WaiterError as ex:
     log.error(f"failed to create stack {stack_name}", exc_info=ex)
+    exit(1)
 
 log.info(f"Cloudformation stack {stack_name} has successfully completed")
 log.info("Run ./get-vpn-config.py to download your client config file")
