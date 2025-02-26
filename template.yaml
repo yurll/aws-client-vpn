@@ -27,6 +27,9 @@ Parameters:
   AssociationSubnetId:
     Description: The subnet to assciate the VPN endpoint with
     Type: AWS::EC2::Subnet::Id
+  AssociationVPCId:
+    Description: The VPC to associate the VPN endpoint with
+    Type: AWS::EC2::VPC::Id
   SplitTunel:
     Description: Enable split tunel
     Type: String
@@ -43,6 +46,20 @@ Resources:
         Fn::Sub: "${EnvironmentName}-ClientVpn"
       RetentionInDays: 30
     Type: AWS::Logs::LogGroup
+
+  ClientVPNSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      Name: ClientVPNSecurityGroup
+      GroupDescription: Client VPN Security Group
+      VpcId: !Ref AssociationVPCId
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all traffic
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
 
   ClientVpnEndpoint:
     Properties:
@@ -69,6 +86,8 @@ Resources:
             Ref: EnvironmentName
       TransportProtocol: udp
       SplitTunnel: !Ref SplitTunel
+      SecurityGroupIds:
+        - !Ref ClientVPNSecurityGroup
     Type: AWS::EC2::ClientVpnEndpoint
 
   ClientVpnTargetNetworkAssociation:
